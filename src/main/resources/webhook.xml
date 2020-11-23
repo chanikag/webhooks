@@ -1,0 +1,51 @@
+<sequence xmlns="http://ws.apache.org/ns/synapse" name="webhook">
+    <filter source="$ctx:API_ELECTED_RESOURCE" regex="/webhooks_events_receiver_resource">
+        <then>
+            <clone>
+                <target>
+                    <sequence>
+                        <property name="NO_ENTITY_BODY" value="true" scope="axis2" type="BOOLEAN" />
+                        <respond/>
+                    </sequence>
+                </target>
+                <target>
+                    <sequence>   
+                        <property name="client_callback_url" expression="$url:client.callback"/>
+                        <property name="OUT_ONLY" value="true"/>
+                        <header name="To" expression="$url:client.callback"/>
+                        <call>
+                            <endpoint>
+                                <default/>
+                            </endpoint>
+                        </call>
+                    </sequence>
+                </target>
+            </clone>
+        </then>
+        <else>                               
+            <property name="Authorization" value="token xxxxxxxxxxxxxxxxxxxxxxx" scope="transport"/>
+            <property name="Accept" value="application/json" scope="transport"/>
+            <property name="gateway_topic" expression="$url:hub.topic"/>
+            <property name="sp_topic" value="https://github.com/chanikag/asyncapi-demo/events/push"/>
+            <property name="callback" expression="$url:hub.callback"/>
+            <property name="api_name" expression="$ctx:REST_API_CONTEXT"/>
+            <property name="api_version" expression="$ctx:SYNAPSE_REST_API_VERSION"/>
+            <property name="inbound_port" value="9021"/>
+            <property name="original_request" expression="$axis2:REST_URL_POSTFIX"/>
+            <property name="endpoint" expression="fn:concat('http://', $axis2:REMOTE_ADDR,':',$ctx:inbound_port)"/>
+            <script language="js" description="Query Parameter Encoding Script">
+                mc.setProperty("encoded_client_callback", encodeURIComponent(mc.getProperty('callback')));
+            </script>  
+            <property name="endpointCallback" expression="fn:concat($ctx:endpoint,$ctx:api_name,'/','webhooks_events_receiver_resource', '?client.callback=',$ctx:encoded_client_callback)"/>
+            <property name="FORCE_POST_PUT_NOBODY" value="true" scope="axis2" type="BOOLEAN"/>
+            <property name="encoded_gateway_callback" expression="fn:url-encode($ctx:endpointCallback)"/>
+            <property name="POST_TO_URI" value="true" scope="axis2"/>
+            <script language="js" description="Query Parameter Encoding Script">
+                mc.setProperty("encoded_endpoint_callback", encodeURIComponent(mc.getProperty('endpointCallback')));
+                mc.setProperty("encoded_topic", encodeURIComponent(mc.getProperty('sp_topic')));
+            </script> 
+            <property name="REST_URL_POSTFIX" expression="fn:concat('?hub.callback=',$ctx:encoded_endpoint_callback,'&amp;hub.topic=',$ctx:encoded_topic,'&amp;hub.mode=',$url:hub.mode)" scope="axis2" type="STRING"/> 
+
+        </else>
+    </filter>
+</sequence>
